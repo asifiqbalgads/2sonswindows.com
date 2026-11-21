@@ -22,6 +22,7 @@
   /* ---------- Mobile navigation ---------- */
   var menuToggle = document.getElementById('menuToggle');
   var nav = document.getElementById('primaryNav');
+  var navClose = document.getElementById('navClose');
 
   function setNav(open) {
     if (!nav || !menuToggle) return;
@@ -36,9 +37,16 @@
       setNav(!nav.classList.contains('is-open'));
     });
   }
+  if (navClose) {
+    navClose.addEventListener('click', function () {
+      setNav(false);
+    });
+  }
   if (nav) {
     nav.addEventListener('click', function (e) {
-      if (e.target.closest('a')) setNav(false);
+      var link = e.target.closest('a');
+      if (link) setNav(false);
+      else if (e.target === nav) setNav(false);
     });
   }
   document.addEventListener('keydown', function (e) {
