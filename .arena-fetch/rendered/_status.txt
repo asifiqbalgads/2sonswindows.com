@@ -1,0 +1,9 @@
+launched
+domcontentloaded
+html len 1052512
+frame 0 https://www.2sonswindows.com/ 1052497
+frame 1 https://www-2sonswindows-com.filesusr.com/html/ed32d8_a14e1945966e6258353d8e58755d4f43.html 1235
+frame 2 https://www-2sonswindows-com.filesusr.com/html/ed32d8_f24ce38183886a17ccf98ede3966daa9.html 252048
+frame 3 https://engage.wixapps.net/chat-widget-server/renderChatWidget/index?pageId=masterPage&compId=comp-j 64722
+desktop shot ok
+DONE
