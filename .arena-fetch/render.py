@@ -1,53 +1,81 @@
 #!/usr/bin/env python3
-import os, json, asyncio
-from playwright.async_api import async_playwright
-
+import os, json, traceback
 OUT = ".arena-fetch/rendered"
 os.makedirs(OUT, exist_ok=True)
+LOG = []
+def log(*a):
+    s = " ".join(str(x) for x in a)
+    LOG.append(s)
+    print(s, flush=True)
+    open(os.path.join(OUT, "_status.txt"), "w").write("\n".join(LOG))
 
-async def main():
-    async with async_playwright() as p:
-        b = await p.chromium.launch()
-        ctx = await b.new_context(viewport={"width": 1440, "height": 1000}, device_scale_factor=1)
-        page = await ctx.new_page()
-        await page.goto("https://www.2sonswindows.com/", wait_until="networkidle", timeout=120000)
-        # scroll to trigger lazy widgets
-        for i in range(12):
-            await page.mouse.wheel(0, 1400)
-            await page.wait_for_timeout(700)
-        await page.wait_for_timeout(4000)
-        html = await page.content()
-        open(os.path.join(OUT, "home-rendered.html"), "w").write(html)
+try:
+    from playwright.sync_api import sync_playwright
+except Exception as e:
+    log("import fail", e); raise
+
+URL = "https://www.2sonswindows.com/"
+
+def run():
+    with sync_playwright() as p:
+        b = p.chromium.launch(args=["--no-sandbox"])
+        log("launched")
+        ctx = b.new_context(viewport={"width": 1440, "height": 1000})
+        page = ctx.new_page()
+        page.on("console", lambda m: None)
+        try:
+            page.goto(URL, wait_until="domcontentloaded", timeout=90000)
+            log("domcontentloaded")
+        except Exception as e:
+            log("goto err", repr(e))
+        page.wait_for_timeout(6000)
+        for i in range(14):
+            try:
+                page.mouse.wheel(0, 1200)
+            except Exception:
+                pass
+            page.wait_for_timeout(800)
+        page.wait_for_timeout(5000)
+        try:
+            html = page.content()
+            open(os.path.join(OUT, "home-rendered.html"), "w").write(html)
+            log("html len", len(html))
+        except Exception as e:
+            log("content err", repr(e))
 
         frames = []
-        for f in page.frames:
-            frames.append({"url": f.url, "name": f.name})
+        for idx, f in enumerate(page.frames):
+            info = {"i": idx, "url": f.url, "name": f.name}
+            frames.append(info)
+            body = ""
             try:
-                body = await f.evaluate("() => document.documentElement.outerHTML")
+                body = f.evaluate("() => document.documentElement.outerHTML")
             except Exception as e:
-                body = "ERR " + str(e)
-            safe = f.url.replace("https://", "").replace("/", "_").replace("?", "_")[:120] or "main"
-            open(os.path.join(OUT, f"frame_{len(frames):02d}_{safe[:80]}.html"), "w").write(body or "")
-        open(os.path.join(OUT, "frames.json"), "w").write(json.dumps(frames, indent=1))
-
-        # extract text of iframes that look like reviews
-        for i, f in enumerate(page.frames):
+                body = "ERR " + repr(e)
+            fn = f"frame_{idx:02d}.html"
+            open(os.path.join(OUT, fn), "w").write(body or "")
+            info["len"] = len(body or "")
             try:
-                txt = await f.evaluate("() => document.body ? document.body.innerText : ''")
+                txt = f.evaluate("() => document.body ? document.body.innerText : ''") or ""
             except Exception:
                 txt = ""
-            if txt and ("review" in txt.lower() or "star" in txt.lower() or "google" in txt.lower()):
-                open(os.path.join(OUT, f"reviewtext_{i:02d}.txt"), "w").write(txt)
-        await page.screenshot(path=os.path.join(OUT, "desktop-full.png"), full_page=True)
+            if txt.strip():
+                open(os.path.join(OUT, f"text_{idx:02d}.txt"), "w").write(txt)
+            log("frame", idx, info["url"][:100], info["len"])
+        open(os.path.join(OUT, "frames.json"), "w").write(json.dumps(frames, indent=1))
 
-        ctx2 = await b.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=2)
-        p2 = await ctx2.new_page()
-        await p2.goto("https://www.2sonswindows.com/", wait_until="networkidle", timeout=120000)
-        for i in range(14):
-            await p2.mouse.wheel(0, 1200)
-            await p2.wait_for_timeout(600)
-        await p2.wait_for_timeout(3000)
-        await p2.screenshot(path=os.path.join(OUT, "mobile-full.png"), full_page=True)
-        await b.close()
+        try:
+            page.screenshot(path=os.path.join(OUT, "desktop-full.png"), full_page=True)
+            log("desktop shot ok")
+        except Exception as e:
+            log("desktop shot err", repr(e))
+        try:
+            b.close()
+        except Exception:
+            pass
 
-asyncio.run(main())
+try:
+    run()
+    log("DONE")
+except Exception:
+    log("FATAL", traceback.format_exc())
